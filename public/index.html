@@ -2,7 +2,10 @@
 <html>
   <head>
     <title>Mini Discord Clone</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
     <style>
       :root {
         --bg: #2c2f33;
@@ -11,23 +14,31 @@
         --text: #ffffff;
         --text-muted: #b9bbbe;
       }
+
       body {
-        font-family: "Inter", sans-serif;
+        font-family: "Inter", "Segoe UI", Roboto, sans-serif;
         margin: 0;
         height: 100vh;
         display: flex;
         background: var(--bg-dark);
         color: var(--text);
       }
-      #auth-screen, #chat-container { margin: auto; }
+
+      /* === Auth screen === */
+      #auth-screen {
+        margin: auto;
+        text-align: center;
+      }
+
       #auth-form {
         background: var(--bg);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-        text-align: center;
+        display: inline-block;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
       }
-      input {
+
+      #auth-form input {
         padding: 12px;
         border: none;
         border-radius: 8px;
@@ -37,7 +48,8 @@
         width: 220px;
         margin-bottom: 12px;
       }
-      button {
+
+      #auth-form button {
         background: var(--accent);
         border: none;
         padding: 10px 22px;
@@ -45,24 +57,146 @@
         color: #fff;
         font-weight: 600;
         cursor: pointer;
+        margin: 4px;
       }
+
+      #auth-error {
+        margin-top: 10px;
+        color: red;
+      }
+
+      /* === Chat layout === */
       #chat-container {
         flex: 1;
         display: none;
       }
+
       #chat-area {
         flex: 1;
         display: flex;
         flex-direction: column;
         border-right: 1px solid #202225;
       }
-      #chat { flex: 1; overflow-y: auto; padding: 20px; }
-      .message { margin: 10px 0; }
-      #form { display: flex; background: var(--bg); padding: 10px; }
-      #input { flex: 1; background: #40444b; border: none; border-radius: 6px; padding: 10px; color: var(--text); }
-      #send { margin-left: 8px; }
-      #sidebar { width: 240px; background: var(--bg); display: flex; flex-direction: column; }
-      #users { flex: 1; padding: 12px; overflow-y: auto; }
+
+      #chat {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .message {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        margin: 10px 0;
+      }
+
+      .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #fff;
+        flex-shrink: 0;
+      }
+
+      .message-content {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .message .username {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+
+      .message .text {
+        font-size: 15px;
+        color: var(--text);
+      }
+
+      .message.server {
+        justify-content: center;
+        color: var(--text-muted);
+        font-style: italic;
+      }
+
+      #form {
+        display: flex;
+        background: var(--bg);
+        border-top: 1px solid #202225;
+        padding: 10px;
+      }
+
+      #input {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: 6px;
+        outline: none;
+        font-size: 15px;
+        background: #40444b;
+        color: var(--text);
+      }
+
+      #send {
+        background: var(--accent);
+        border: none;
+        margin-left: 8px;
+        padding: 0 18px;
+        border-radius: 6px;
+        color: #fff;
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      #sidebar {
+        width: 240px;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+      }
+
+      #users {
+        flex: 1;
+        padding: 12px;
+        overflow-y: auto;
+      }
+
+      .user {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0;
+        font-size: 14px;
+      }
+
+      .user .avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 13px;
+      }
+
+      #settings-container {
+        border-top: 1px solid #202225;
+        padding: 10px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      #settings-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 20px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -70,17 +204,17 @@
     <div id="auth-screen">
       <form id="auth-form">
         <h2>Register / Login</h2>
-        <input id="auth-username" placeholder="Username" required />
+        <input id="auth-username" placeholder="Username" autocomplete="off" required />
         <br />
-        <input id="auth-password" type="password" placeholder="Password" required />
+        <input id="auth-password" type="password" placeholder="Password (min 8 chars)" required />
         <br />
         <button type="button" id="register-btn">Register</button>
         <button type="button" id="login-btn">Login</button>
-        <div id="auth-error" style="color:red; margin-top:10px;"></div>
+        <div id="auth-error"></div>
       </form>
     </div>
 
-    <!-- Chat container -->
+    <!-- Chat -->
     <div id="chat-container">
       <div id="chat-area">
         <div id="chat"></div>
@@ -90,7 +224,13 @@
         </form>
       </div>
       <div id="sidebar">
-        <div id="users"><strong>Online Users</strong><div id="user-list"></div></div>
+        <div id="users">
+          <strong>Online Users</strong>
+          <div id="user-list"></div>
+        </div>
+        <div id="settings-container">
+          <button id="settings-btn"><i class="fas fa-cog"></i></button>
+        </div>
       </div>
     </div>
 
