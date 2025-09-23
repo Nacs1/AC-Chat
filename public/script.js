@@ -1,13 +1,10 @@
 const socket = io();
 
-// DOM
-const authScreen = document.getElementById("auth-screen");
-const authUsername = document.getElementById("auth-username");
-const authPassword = document.getElementById("auth-password");
-const registerBtn = document.getElementById("register-btn");
-const loginBtn = document.getElementById("login-btn");
-const authError = document.getElementById("auth-error");
-
+// --- DOM ---
+const joinScreen = document.getElementById("join-screen");
+const joinForm = document.getElementById("join-form");
+const usernameInput = document.getElementById("username");
+const passwordInput = document.getElementById("password");
 const chatContainer = document.getElementById("chat-container");
 const chat = document.getElementById("chat");
 const form = document.getElementById("form");
@@ -15,83 +12,158 @@ const input = document.getElementById("input");
 const userList = document.getElementById("user-list");
 
 // Avatar colors
-const colors = ["#e57373","#f06292","#ba68c8","#64b5f6","#4db6ac","#81c784","#ffd54f","#ffb74d","#a1887f","#90a4ae"];
-function getAvatarColor(name) {
-  let hash=0; for (let i=0;i<name.length;i++) hash=name.charCodeAt(i)+((hash<<5)-hash);
+const colors = [
+  "#e57373","#f06292","#ba68c8","#64b5f6","#4db6ac",
+  "#81c784","#ffd54f","#ffb74d","#a1887f","#90a4ae"
+];
+
+function getAvatarColor(name){
+  let hash=0;
+  for(let i=0;i<name.length;i++){
+    hash=name.charCodeAt(i)+((hash<<5)-hash);
+  }
   return colors[Math.abs(hash)%colors.length];
 }
-function createAvatar(name, small=false) {
+
+function createAvatar(name,small=false){
   const div=document.createElement("div");
   div.className="avatar";
   div.style.background=getAvatarColor(name);
   div.textContent=name.charAt(0).toUpperCase();
-  if(small){div.style.width="28px";div.style.height="28px";div.style.fontSize="13px";}
+  if(small){
+    div.style.width="28px";
+    div.style.height="28px";
+    div.style.fontSize="13px";
+  }
   return div;
 }
 
+function formatTime(date){
+  let h=date.getHours();
+  const m=date.getMinutes().toString().padStart(2,"0");
+  const ampm=h>=12?"PM":"AM";
+  h=h%12||12;
+  return `${h}:${m} ${ampm}`;
+}
+
+// --- Message stacking state ---
+let lastUser=null;
+let lastTime=null;
+
+function addMessage({user,text}){
+  if(user==="Server"){
+    const item=document.createElement("div");
+    item.className="message server";
+    item.textContent=text;
+    chat.appendChild(item);
+    lastUser=null;
+    lastTime=null;
+    chat.scrollTop=chat.scrollHeight;
+    return;
+  }
+
+  const now=new Date();
+  const fiveMinutes=5*60*1000;
+  const needNewBlock=(user!==lastUser || !lastTime || now-lastTime>fiveMinutes);
+
+  if(needNewBlock){
+    const item=document.createElement("div");
+    item.className="message";
+
+    const avatar=createAvatar(user);
+    const content=document.createElement("div");
+    content.className="message-content";
+
+    const header=document.createElement("div");
+    header.className="username";
+    header.textContent=user+" ";
+
+    const timeEl=document.createElement("span");
+    timeEl.style.color="#b9bbbe";
+    timeEl.style.fontSize="12px";
+    timeEl.textContent=formatTime(now);
+    header.appendChild(timeEl);
+
+    const textEl=document.createElement("div");
+    textEl.className="text";
+    textEl.textContent=text;
+
+    content.appendChild(header);
+    content.appendChild(textEl);
+
+    item.appendChild(avatar);
+    item.appendChild(content);
+    chat.appendChild(item);
+  }else{
+    let lastMsgElement=null;
+    for(let i=chat.children.length-1;i>=0;i--){
+      const el=chat.children[i];
+      if(el.classList && el.classList.contains("message") && !el.classList.contains("server")){
+        lastMsgElement=el;
+        break;
+      }
+    }
+    if(lastMsgElement){
+      const content=lastMsgElement.querySelector(".message-content");
+      const textEl=document.createElement("div");
+      textEl.className="text";
+      textEl.textContent=text;
+      content.appendChild(textEl);
+    }
+  }
+
+  lastUser=user;
+  lastTime=now;
+  chat.scrollTop=chat.scrollHeight;
+}
+
+// === Register/Login ===
 let username=null;
 
-// Auto-login from localStorage
-window.addEventListener("load",()=>{
-  const saved=JSON.parse(localStorage.getItem("account"));
-  if(saved){
-    socket.emit("login",saved,(res)=>{
-      if(res.success){username=res.username;showChat();}
-      else localStorage.removeItem("account");
-    });
-  }
-});
+joinForm.addEventListener("submit",(e)=>{
+  e.preventDefault();
+  const name=usernameInput.value.trim();
+  const pass=passwordInput.value;
 
-function showChat(){
-  authScreen.style.display="none";
-  chatContainer.style.display="flex";
-  input.focus();
-}
-
-// Register
-registerBtn.addEventListener("click",()=>{
-  const name=authUsername.value.trim();
-  const pass=authPassword.value;
-  socket.emit("register",{name,password:pass},(res)=>{
-    if(!res.success) authError.textContent=res.message;
-    else{
-      localStorage.setItem("account",JSON.stringify({name,password:pass}));
-      socket.emit("login",{name,password:pass},(res2)=>{
-        if(res2.success){username=res2.username;showChat();}
-      });
-    }
-  });
-});
-
-// Login
-loginBtn.addEventListener("click",()=>{
-  const name=authUsername.value.trim();
-  const pass=authPassword.value;
   socket.emit("login",{name,password:pass},(res)=>{
-    if(!res.success) authError.textContent=res.message;
-    else{
-      localStorage.setItem("account",JSON.stringify({name,password:pass}));
+    if(res.success){
       username=res.username;
-      showChat();
+      joinScreen.style.display="none";
+      chatContainer.style.display="flex";
+      input.focus();
+    }else{
+      alert(res.message);
     }
   });
 });
 
-// Messages
-function addMessage({user,text}){
-  const item=document.createElement("div");
-  if(user==="Server"){item.className="message server";item.textContent=text;}
-  else{
-    item.className="message";
-    const avatar=createAvatar(user);
-    const content=document.createElement("div");content.className="message-content";
-    const header=document.createElement("div");header.className="username";header.textContent=user;
-    const textEl=document.createElement("div");textEl.className="text";textEl.textContent=text;
-    content.appendChild(header);content.appendChild(textEl);
-    item.appendChild(avatar);item.appendChild(content);
+// --- Notifications ---
+let unreadCount=0;
+const originalTitle=document.title;
+const notifySound=new Audio("/notify.mp3");
+
+window.addEventListener("focus",()=>{
+  unreadCount=0;
+  document.title=originalTitle;
+});
+
+// --- Messages ---
+socket.on("chatMessage",(msg)=>{
+  addMessage(msg);
+
+  // Notification if not own message & not server
+  if(msg.user!==username && msg.user!=="Server"){
+    if(document.hidden){
+      notifySound.play().catch(()=>{});
+      unreadCount++;
+      if(unreadCount>9){
+        document.title="(9+) "+originalTitle;
+      }else{
+        document.title=`(${unreadCount}) ${originalTitle}`;
+      }
+    }
   }
-  chat.appendChild(item);chat.scrollTop=chat.scrollHeight;
-}
+});
 
 form.addEventListener("submit",(e)=>{
   e.preventDefault();
@@ -101,14 +173,17 @@ form.addEventListener("submit",(e)=>{
   input.value="";
 });
 
-socket.on("chatMessage",addMessage);
-
+// --- Online users ---
 socket.on("userList",(users)=>{
   userList.innerHTML="";
   users.forEach((u)=>{
-    const el=document.createElement("div");el.className="user";
-    el.appendChild(createAvatar(u,true));
-    const span=document.createElement("span");span.textContent=u;
-    el.appendChild(span);userList.appendChild(el);
+    const userEl=document.createElement("div");
+    userEl.className="user";
+    const avatar=createAvatar(u,true);
+    const name=document.createElement("span");
+    name.textContent=u;
+    userEl.appendChild(avatar);
+    userEl.appendChild(name);
+    userList.appendChild(userEl);
   });
 });
