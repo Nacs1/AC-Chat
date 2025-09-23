@@ -1,4 +1,3 @@
-// public/script.js
 const socket = io();
 
 // --- DOM ---
@@ -51,14 +50,13 @@ let lastUser = null;
 let lastTime = null;
 
 function addMessage({ user, text }) {
-  // Server-style messages (centered)
+  // Server-style messages
   if (user === "Server") {
     const item = document.createElement("div");
     item.className = "message server";
     item.textContent = text;
     chat.appendChild(item);
 
-    // reset stacking so next real message shows avatar
     lastUser = null;
     lastTime = null;
     chat.scrollTop = chat.scrollHeight;
@@ -99,7 +97,7 @@ function addMessage({ user, text }) {
     item.appendChild(content);
     chat.appendChild(item);
   } else {
-    // find last non-server message block to append to
+    // append to last block
     let lastMsgElement = null;
     for (let i = chat.children.length - 1; i >= 0; i--) {
       const el = chat.children[i];
@@ -115,34 +113,6 @@ function addMessage({ user, text }) {
       textEl.className = "text";
       textEl.textContent = text;
       lastMsgContent.appendChild(textEl);
-    } else {
-      // Fallback: create a normal block if none found
-      const item = document.createElement("div");
-      item.className = "message";
-
-      const avatar = createAvatar(user);
-      const content = document.createElement("div");
-      content.className = "message-content";
-
-      const header = document.createElement("div");
-      header.className = "username";
-      header.textContent = `${user} `;
-      const timeEl = document.createElement("span");
-      timeEl.style.color = "#b9bbbe";
-      timeEl.style.fontSize = "12px";
-      timeEl.textContent = formatTime(now);
-      header.appendChild(timeEl);
-
-      const textEl = document.createElement("div");
-      textEl.className = "text";
-      textEl.textContent = text;
-
-      content.appendChild(header);
-      content.appendChild(textEl);
-
-      item.appendChild(avatar);
-      item.appendChild(content);
-      chat.appendChild(item);
     }
   }
 
@@ -151,12 +121,11 @@ function addMessage({ user, text }) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-// --- Typing indicator (supports multiple users) ---
+// --- Typing indicator ---
 const typingIndicator = document.createElement("div");
 typingIndicator.style.fontStyle = "italic";
 typingIndicator.style.color = "#b9bbbe";
 typingIndicator.style.fontSize = "14px";
-// put it just below chat (chat.parentElement contains chat and form)
 chat.parentElement.insertBefore(typingIndicator, form);
 
 let typing = false;
@@ -174,13 +143,11 @@ function updateTypingIndicator() {
   } else if (others.length === 1) {
     typingIndicator.textContent = `${others[0]} is typing...`;
   } else {
-    // show up to two names
     const names = others.slice(0, 2).join(" and ");
     typingIndicator.textContent = `${names} are typing...`;
   }
 }
 
-// detect local typing
 input.addEventListener("input", () => {
   if (!typing) {
     typing = true;
@@ -193,12 +160,41 @@ input.addEventListener("input", () => {
   }, 1500);
 });
 
-// --- Socket events ---
-socket.on("chatMessage", (msg) => {
-  addMessage(msg);
+// --- Notifications ---
+let unreadCount = 0;
+const originalTitle = document.title;
+const notifySound = new Audio("/notify.mp3");
+
+// Reset when tab is focused
+window.addEventListener("focus", () => {
+  unreadCount = 0;
+  document.title = originalTitle;
 });
 
-// update online users list
+// --- Socket events ---
+let username = null;
+
+socket.on("chatMessage", (msg) => {
+  addMessage(msg);
+
+  // Only notify if not our own or server msg
+  if (msg.user !== username && msg.user !== "Server") {
+    // Play sound
+    notifySound.play().catch(() => {});
+  }
+
+  // Update title if tab is inactive
+  if (document.hidden && msg.user !== username && msg.user !== "Server") {
+    unreadCount++;
+    if (unreadCount > 9) {
+      document.title = "(9+) " + originalTitle;
+    } else {
+      document.title = `(${unreadCount}) ${originalTitle}`;
+    }
+  }
+});
+
+// Online users list
 socket.on("userList", (users) => {
   userList.innerHTML = "";
   users.forEach((u) => {
@@ -213,9 +209,8 @@ socket.on("userList", (users) => {
   });
 });
 
-// handle typing events from others
+// Typing from others
 socket.on("typing", ({ user, isTyping }) => {
-  // ignore our own typing events
   if (!user) return;
   if (user === (username || "")) return;
 
@@ -224,33 +219,25 @@ socket.on("typing", ({ user, isTyping }) => {
   updateTypingIndicator();
 });
 
-// --- Join form (prevent reload!) ---
-let username = null;
+// --- Join form ---
 joinForm.addEventListener("submit", (e) => {
-  e.preventDefault(); // THIS prevents the page reload
+  e.preventDefault();
   username = usernameInput.value.trim() || "Anonymous";
-
-  // send username to server (server will update user list and announce join)
   socket.emit("setUsername", username);
 
-  // hide join screen, show chat
   joinScreen.style.display = "none";
   chatContainer.style.display = "flex";
-
-  // focus input
   input.focus();
 });
 
-// --- Message send form ---
+// --- Send message ---
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (!text) return;
 
-  // emit message; server will broadcast it back (so we don't locally add to avoid dupes)
   socket.emit("chatMessage", text);
 
-  // stop typing state
   if (typing) {
     typing = false;
     sendTyping(false);
